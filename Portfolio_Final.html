@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Top Stocks Portfolio - Mcare Financial Services</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { margin-bottom: 4px; }
+    h2 { margin-top: 0; margin-bottom: 10px; font-size: 16px; color: #555; }
+    .controls { margin-bottom: 10px; }
+    .controls label { margin-right: 10px; }
+    input[type="number"] { width: 100px; }
+    .btn { padding: 6px 10px; cursor: pointer; margin-top: 8px; margin-right: 8px; margin-bottom: 10px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 6px 8px; font-size: 13px; text-align: right; }
+    th:nth-child(2), td:nth-child(2) { text-align: left; }
+    th:nth-child(3), td:nth-child(3) { text-align: left; }
+    th { background-color: #f4f4f4; }
+    .note { font-size: 11px; color: #666; margin-top: 8px; }
+    #summary { margin-top: 8px; font-size: 13px; }
+    #backtest, #indexCompare { margin-top: 4px; font-size: 12px; }
+    .disclaimer { font-size: 10px; color: #000; margin-top: 12px; padding: 8px; border: 1px solid #ccc; background-color: #f9f9f9; line-height: 1.4; }
+  </style>
+</head>
+<body>
+
+<div id="portfolioArea">
+  <h1>Mcare Financial Services</h1>
+  <h2>NRI AI-Generated Equity Portfolio (Advisory Demo)</h2>
+
+  <div class="controls">
+    <label>
+      Total Capital (₹):
+      <input type="number" id="totalCapital" value="1000000" min="10000" step="1000">
+    </label>
+    <label>
+      Large (Nifty 50) %:
+      <input type="number" id="largePct" value="60" min="0" max="100">
+    </label>
+    <label>
+      Mid (Nifty 200) %:
+      <input type="number" id="midPct" value="30" min="0" max="100">
+    </label>
+    <label>
+      Small (Smallcap 150) %:
+      <input type="number" id="smallPct" value="10" min="0" max="100">
+    </label>
+  </div>
+
+  <button class="btn" id="btnShow">Generate Portfolio</button>
+  <button class="btn" id="btnPdf">Download Branded PDF</button>
+
+  <div id="summary"></div>
+  <div id="backtest"></div>
+  <div id="indexCompare"></div>
+
+  <table id="stocksTable" style="display:none;">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Stock</th>
+        <th>Cap / Index</th>
+        <th>Sector</th>
+        <th>CMP (₹)</th>
+        <th>AI Score</th>
+        <th>CAGR (3–5Y)</th>
+        <th>Alloc (₹)</th>
+        <th>Qty</th>
+        <th>Fundamental Remark</th>
+      </tr>
+    </thead>
+    <tbody id="stocksBody"></tbody>
+  </table>
+
+  <table id="perfTable" style="display:none; margin-top:10px;">
+    <thead>
+      <tr>
+        <th>Period</th>
+        <th>Portfolio Value (₹)</th>
+        <th>Nifty 500 Value (₹)</th>
+        <th>Portfolio CAGR %</th>
+        <th>Nifty 500 CAGR %</th>
+      </tr>
+    </thead>
+    <tbody id="perfBody"></tbody>
+  </table>
+
+  <p class="note">
+    Demo only – names, CMP and remarks are simulated around an 18% CAGR target.
+  </p>
+
+  <div class="disclaimer">
+    <b>DISCLAIMER:</b> This portfolio is generated for illustration and advisory purposes only. It is not an offer to sell or a solicitation to buy any securities. Past performance is not indicative of future results. Equity investments are subject to market risks. Please consult a qualified financial advisor before making any investment decisions. Mcare Financial Services does not guarantee returns or make any warranty regarding the accuracy or completeness of the information provided herein. Investors must conduct their own due diligence and research before investing.
+  </div>
+</div>
+
+<!-- PDF library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"
+        integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+<script>
+// ---------- SAMPLE UNIVERSE (replace later with real index data) ----------
+const nifty50Universe = [
+  { name: "Infosys",           symbol: "INFY",       sector: "IT",          cmpMin: 1500, cmpMax: 1900 },
+  { name: "TCS",               symbol: "TCS",        sector: "IT",          cmpMin: 3500, cmpMax: 4200 },
+  { name: "Reliance Inds",     symbol: "RELIANCE",   sector: "Energy",      cmpMin: 2300, cmpMax: 2700 },
+  { name: "Larsen & Toubro",   symbol: "LT",         sector: "Infra",       cmpMin: 3200, cmpMax: 3900 },
+  { name: "Hindustan Unilever",symbol: "HINDUNILVR", sector: "FMCG",        cmpMin: 2300, cmpMax: 2800 },
+  { name: "Asian Paints",      symbol: "ASIANPAINT", sector: "Consumer",    cmpMin: 2800, cmpMax: 3400 },
+  { name: "Tata Motors",       symbol: "TATAMOTORS", sector: "Auto",        cmpMin: 800,  cmpMax: 1100 },
+  { name: "Maruti Suzuki",     symbol: "MARUTI",     sector: "Auto",        cmpMin: 9500, cmpMax: 12500 },
+  { name: "Kotak Mahindra Bank",symbol: "KOTAKBANK", sector: "Financials",  cmpMin: 1600, cmpMax: 2100 },
+  { name: "Bajaj Finance",     symbol: "BAJFINANCE", sector: "Financials",  cmpMin: 6500, cmpMax: 8000 }
+];
+
+const nifty200Universe = [
+  { name: "LTIMindtree",   symbol: "LTIM",       sector: "IT",            cmpMin: 4500, cmpMax: 6000 },
+  { name: "Persistent",    symbol: "PERSISTENT",sector: "IT",            cmpMin: 3000, cmpMax: 4200 },
+  { name: "Crompton Greaves",symbol: "CROMPTON",sector: "Consumer",      cmpMin: 250,  cmpMax: 400 },
+  { name: "Tata Elxsi",    symbol: "TATAELXSI",  sector: "IT",            cmpMin: 6500, cmpMax: 9000 },
+  { name: "Aegis Logistics",symbol: "AEGISCHEM", sector: "Logistics",     cmpMin: 350,  cmpMax: 550 },
+  { name: "Voltas",        symbol: "VOLTAS",     sector: "Consumer",      cmpMin: 800,  cmpMax: 1200 },
+  { name: "Mphasis",       symbol: "MPHASIS",    sector: "IT",            cmpMin: 2000, cmpMax: 2900 },
+  { name: "Astral",        symbol: "ASTRAL",     sector: "Building Mat.", cmpMin: 1700, cmpMax: 2300 }
+];
+
+const smallcap150Universe = [
+  { name: "KEI Industries", symbol: "KEI",       sector: "Cables",        cmpMin: 2500, cmpMax: 3800 },
+  { name: "KNR Constructions",symbol: "KNRCON",  sector: "Infra",         cmpMin: 250,  cmpMax: 450 },
+  { name: "RateGain Travel",symbol: "RATEGAIN",  sector: "IT/Travel",     cmpMin: 450,  cmpMax: 800 },
+  { name: "Schaeffler India",symbol: "SCHAEFFLER",sector:"Auto Anc.",     cmpMin: 3500, cmpMax: 5500 },
+  { name: "Deepak Nitrite", symbol: "DEEPAKNTR", sector: "Chemicals",     cmpMin: 1900, cmpMax: 2800 },
+  { name: "PNC Infratech",  symbol: "PNCINFRA",  sector: "Infra",         cmpMin: 300,  cmpMax: 550 },
+  { name: "Syngene Intl",   symbol: "SYNGENE",   sector: "Pharma",        cmpMin: 550,  cmpMax: 800 },
+  { name: "KPR Mill",       symbol: "KPRMILL",   sector: "Textiles",      cmpMin: 700,  cmpMax: 1100 }
+];
+
+// ---------- HELPERS ----------
+function randBetween(min, max) {
+  return Math.random() * (max - min) + min;
+}
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ---------- MAIN ----------
+const btnShow      = document.getElementById('btnShow');
+const btnPdf       = document.getElementById('btnPdf');
+const table        = document.getElementById('stocksTable');
+const bodyEl       = document.getElementById('stocksBody');
+const totalCapital = document.getElementById('totalCapital');
+const largePctEl   = document.getElementById('largePct');
+const midPctEl     = document.getElementById('midPct');
+const smallPctEl   = document.getElementById('smallPct');
+const summaryEl    = document.getElementById('summary');
+const backtestEl   = document.getElementById('backtest');
+const indexCompareEl = document.getElementById('indexCompare');
+const perfTable    = document.getElementById('perfTable');
+const perfBody     = document.getElementById('perfBody');
+
+btnShow.addEventListener('click', function () {
+  bodyEl.innerHTML = "";
+  backtestEl.textContent = "";
+  indexCompareEl.textContent = "";
+  perfBody.innerHTML = "";
+  perfTable.style.display = "none";
+
+  const total = Number(totalCapital.value || 0);
+  const largeP = Number(largePctEl.value || 0);
+  const midP   = Number(midPctEl.value || 0);
+  const smallP = Number(smallPctEl.value || 0);
+  const pctSum = largeP + midP + smallP;
+
+  if (total <= 0) {
+    alert("Enter valid total capital.");
+    return;
+  }
+  if (pctSum !== 100) {
+    alert("Large + Mid + Small must equal 100.");
+    return;
+  }
+
+  summaryEl.innerHTML =
+    `Total: ₹${total.toLocaleString()} | ` +
+    `Large (Nifty 50): ${largeP}% | ` +
+    `Mid (Nifty 200): ${midP}% | ` +
+    `Small (Smallcap 150): ${smallP}%`;
+
+  const enrichedLarge = shuffle(nifty50Universe).map(s => ({
+    ...s,
+    capText: "Large / Nifty 50",
+    cmp: randBetween(s.cmpMin, s.cmpMax),
+    score: randBetween(70, 99),
+    cagr: randBetween(15, 21)
+  }));
+  const enrichedMid = shuffle(nifty200Universe).map(s => ({
+    ...s,
+    capText: "Mid / Nifty 200",
+    cmp: randBetween(s.cmpMin, s.cmpMax),
+    score: randBetween(70, 99),
+    cagr: randBetween(15, 21)
+  }));
+  const enrichedSmall = shuffle(smallcap150Universe).map(s => ({
+    ...s,
+    capText: "Small / Smallcap 150",
+    cmp: randBetween(s.cmpMin, s.cmpMax),
+    score: randBetween(70, 99),
+    cagr: randBetween(15, 21)
+  }));
+
+  const all = [...enrichedLarge, ...enrichedMid, ...enrichedSmall]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10);   // 10-stock portfolio
+
+  const perStockAlloc = total / all.length;
+  let index = 0;
+  let invested = 0;
+
+  all.forEach(s => {
+    index++;
+    const qty = Math.floor(perStockAlloc / s.cmp);
+    if (qty <= 0) return;
+    const alloc = qty * s.cmp;
+    invested += alloc;
+
+    const remark =
+      s.score >= 90 ? "Strong fundamentals & leadership"
+    : s.score >= 80 ? "Good fundamentals with healthy growth"
+    : "Reasonable quality, higher risk";
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${index}</td>
+      <td>${s.name} (${s.symbol})</td>
+      <td>${s.capText}</td>
+      <td>${s.sector}</td>
+      <td>${s.cmp.toFixed(2)}</td>
+      <td>${s.score.toFixed(0)} / 100</td>
+      <td>${s.cagr.toFixed(1)} %</td>
+      <td>${Math.round(alloc).toLocaleString()}</td>
+      <td>${qty}</td>
+      <td>${remark}</td>
+    `;
+    bodyEl.appendChild(tr);
+  });
+
+  table.style.display = invested > 0 ? "table" : "none";
+
+  if (invested > 0) {
+    const avgCagr = calcWeightedCagr();
+    const nifty500Cagr = 12; // assumed index CAGR[web:39]
+
+    // 5Y summary
+    const years5 = 5;
+    const future5Port = invested * Math.pow(1 + avgCagr / 100, years5); // CAGR formula[web:33]
+    const future5Idx  = invested * Math.pow(1 + nifty500Cagr / 100, years5);
+
+    backtestEl.textContent =
+      `Illustrative portfolio backtest (5Y): Invested ₹${Math.round(invested).toLocaleString()} at ` +
+      `${avgCagr.toFixed(1)}% CAGR → ≈ ₹${Math.round(future5Port).toLocaleString()}.`;
+
+    indexCompareEl.textContent =
+      `Index comparison (Nifty 500, assumed ${nifty500Cagr}% CAGR for 5Y): Same ₹${Math.round(invested).toLocaleString()} in Nifty 500 ` +
+      `→ ≈ ₹${Math.round(future5Idx).toLocaleString()}. ` +
+      `Relative outperformance ≈ ${(avgCagr - nifty500Cagr).toFixed(1)} percentage points per year.`;
+
+    // 1 / 3 / 5 year performance table
+    const periods = [1, 3, 5];
+    perfBody.innerHTML = "";
+    periods.forEach(p => {
+      const portVal = invested * Math.pow(1 + avgCagr / 100, p);
+      const idxVal  = invested * Math.pow(1 + nifty500Cagr / 100, p);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${p} Year${p > 1 ? "s" : ""}</td>
+        <td>${Math.round(portVal).toLocaleString()}</td>
+        <td>${Math.round(idxVal).toLocaleString()}</td>
+        <td>${avgCagr.toFixed(1)}</td>
+        <td>${nifty500Cagr.toFixed(1)}</td>
+      `;
+      perfBody.appendChild(tr);
+    });
+    perfTable.style.display = "table";
+  }
+});
+
+function calcWeightedCagr() {
+  const rows = Array.from(bodyEl.querySelectorAll("tr"));
+  let totalAlloc = 0;
+  let weighted = 0;
+  rows.forEach(r => {
+    const alloc = parseFloat(r.children[7].textContent.replace(/,/g, "")) || 0;
+    const cagr  = parseFloat(r.children[6].textContent) || 0;
+    totalAlloc += alloc;
+    weighted   += alloc * cagr;
+  });
+  if (!totalAlloc) return 0;
+  return weighted / totalAlloc;
+}
+
+// PDF download
+btnPdf.addEventListener('click', function () {
+  const element = document.getElementById('portfolioArea');
+  const opt = {
+    margin:       10,
+    filename:     'Mcare_AI_Portfolio.pdf',
+    image:        { type: 'jpeg', quality: 0.98 },
+    html2canvas:  { scale: 2 },
+    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  };
+  html2pdf().set(opt).from(element).save();
+});
+</script>
+
+</body>
+</html>
